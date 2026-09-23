@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
-import curses
 import os
 import sys
+
+# Platform-aware curses import (Windows requires `pip install windows-curses`)
+try:
+    import curses
+except ImportError:
+    if sys.platform == "win32":
+        sys.stderr.write(
+            "Error: 'curses' is required on Windows.\n"
+            "Please install it by running: pip install windows-curses\n"
+        )
+        sys.exit(1)
+    raise
 
 # Reduce Esc key delay in curses (default is 1000ms)
 os.environ.setdefault("ESCDELAY", "25")
@@ -100,6 +111,11 @@ def safe_addstr(stdscr, y, x, text, attr=0):
 
 def recent_picker(stdscr):
     """Show the recent folders menu with arrow navigation."""
+    try:
+        curses.curs_set(0)
+    except curses.error:
+        pass
+
     selected_idx = 0
     scroll_offset = 0
 
@@ -188,7 +204,10 @@ def recent_picker(stdscr):
 
 def picker(stdscr, start_dir):
     """Main folder picker with arrow navigation."""
-    curses.curs_set(0)
+    try:
+        curses.curs_set(0)
+    except curses.error:
+        pass
 
     current_dir = os.path.abspath(start_dir)
     selected_idx = 0
@@ -305,26 +324,30 @@ def picker(stdscr, start_dir):
 def main():
     start_dir = os.getcwd()
 
-    # Save Bash's stdout.
+    # Save stdout for capturing path
     original_stdout = os.dup(sys.stdout.fileno())
 
-    # Send curses UI directly to the terminal.
-    tty = os.open("/dev/tty", os.O_WRONLY)
-    os.dup2(tty, sys.stdout.fileno())
-    os.close(tty)
+    # Send curses UI directly to the terminal device (CONOUT$ on Windows, /dev/tty on Unix)
+    tty_name = "CONOUT$" if sys.platform == "win32" else "/dev/tty"
+    try:
+        tty = os.open(tty_name, os.O_WRONLY)
+        os.dup2(tty, sys.stdout.fileno())
+        os.close(tty)
+    except OSError:
+        pass
 
     try:
         selected = curses.wrapper(picker, start_dir)
     finally:
-        # Restore Bash's stdout.
+        # Restore stdout
         os.dup2(original_stdout, sys.stdout.fileno())
         os.close(original_stdout)
 
-    # Save selected directory to Recents.
+    # Save selected directory to Recents
     if selected:
         save_recent(selected)
 
-        # Send ONLY the selected path back to Bash.
+        # Send ONLY the selected path back to shell
         print(selected)
 
 

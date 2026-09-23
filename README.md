@@ -1,21 +1,42 @@
 # cf (Choose Folder)
 
-**`cf`** is an interactive, curses-based terminal directory browser and quick-switcher. It lets you explore and jump across directory trees effortlessly using arrow-key navigation.
+**`cf`** is a minimalist, keyboard-driven terminal directory navigator and instant shell directory switcher. Built with pure Python and `curses`, it brings visual arrow-key exploration to your command line with zero external dependencies.
 
 ---
 
-## Features
+## 🚀 Installation
 
-- **Arrow-Key Navigation:** Browse directories using intuitive `↑`, `↓`, `←`, `→` and `Enter`.
-- **Fast Directory Jumping:** Changes your current active shell session directory upon selection.
-- **Recent Folders History:** Automatically tracks recently visited directories (`r` key) with quick jump access.
-- **Smooth Viewport Scrolling:** Handles large directories with dozens or hundreds of folders without display glitching.
-- **Smart Backtracking:** Returning up to a parent folder automatically preserves cursor position on the folder you just left.
-- **Zero Heavy Dependencies:** Written entirely in pure Python using standard library `curses` and `os`.
+### Option 1: Quick Install (One-Liner)
+Install instantly without cloning the repo:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nagachaitanyaappana/cf/main/install.sh | bash
+```
+
+After installation, reload your shell:
+```bash
+source ~/.bashrc   # or: source ~/.zshrc
+```
 
 ---
 
-## Keybindings & Controls
+### Option 2: Clone & Install
+
+```bash
+git clone https://github.com/nagachaitanyaappana/cf.git
+cd cf
+chmod +x install.sh
+./install.sh
+```
+
+> **For Developers:** Pass `--link` to create a live symlink instead of copying:
+> ```bash
+> ./install.sh --link
+> ```
+
+---
+
+## ⌨️ Keybindings & Controls
 
 ### Main Folder Picker
 | Key | Action |
@@ -34,24 +55,20 @@
 | :--- | :--- |
 | **`↑` / `↓`** (or `k` / `j`) | Navigate recent folders |
 | **`Enter`** or **`Space`** | Select and `cd` into highlighted recent folder |
-| **`←`** or **`Backspace`** | Return back to folder view |
+| **`←`** or **`Backspace`** | Return back to directory view |
 | **`q`** or **`Esc`** | Cancel and quit |
 
 ---
 
-## Installation & Setup
+## 🧩 Shell Compatibility
 
-### 1. Run the Installer
-```bash
-cd ~/Projects/cf
-chmod +x install.sh
-./install.sh
-```
+`install.sh` automatically configures shell integration for:
+- **Bash** (`~/.bashrc`)
+- **Zsh** (`~/.zshrc`)
+- **Fish** (`~/.config/fish/functions/cf.fish`)
 
-The installer symlinks `cf.py` to `~/.local/bin/cf/cf.py` and registers the `cf()` function in your `~/.bashrc` (or `~/.zshrc`).
-
-### 2. Manual Shell Integration
-If you prefer manual setup, add this function to your `~/.bashrc` or `~/.zshrc`:
+### Manual Setup
+If you want to configure it manually, add this function to your `~/.bashrc` or `~/.zshrc`:
 
 ```bash
 cf() {
@@ -64,16 +81,24 @@ cf() {
 }
 ```
 
-Then reload your shell:
-```bash
-source ~/.bashrc
-```
+---
+
+## 💡 How It Works
+
+Because child processes (like Python) cannot modify the working directory of the parent shell, `cf` uses an elegant two-stage workflow:
+1. `cf.py` redirects its interactive `curses` UI directly to `/dev/tty`.
+2. When a directory is chosen, `cf.py` writes only the selected directory path string to standard output.
+3. The shell wrapper intercepts stdout (`dir=$(python3 ...)`) and executes `cd "$dir"` inside your active terminal session.
 
 ---
 
-## How It Works
+## 🗑️ Uninstallation
 
-Because a child process (like Python) cannot directly change the working directory of its parent shell, `cf` uses a two-stage approach:
-1. `cf.py` redirects its interactive `curses` UI directly to `/dev/tty`.
-2. When you confirm a directory, `cf.py` outputs only the chosen path string to standard output.
-3. The shell wrapper captures this path (`dir=$(python3 ...)`) and executes `cd "$dir"`.
+Run the uninstaller script:
+```bash
+curl -fsSL https://raw.githubusercontent.com/nagachaitanyaappana/cf/main/uninstall.sh | bash
+```
+Or from a cloned directory:
+```bash
+./uninstall.sh
+```

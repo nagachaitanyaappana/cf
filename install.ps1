@@ -1,87 +1,101 @@
 # PowerShell installer for cf (Choose Folder)
 $ErrorActionPreference = "Stop"
+Write-Host "Installing cf (Choose Folder) for Windows..." -ForegroundColor Cyan
 
-Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host "  Installing cf (Choose Folder) - Windows" -ForegroundColor Cyan
-Write-Host "=========================================" -ForegroundColor Cyan
-
-# 1. Check Python
-if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-    Write-Error "Python 3 is required but not found in PATH. Please install Python from https://www.python.org/ or the Microsoft Store."
-    exit 1
+$pythonExe = $null
+$pythonPrefixArgs = @()
+$pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+if ($pythonCommand -and $pythonCommand.Source) {
+    try {
+        & $pythonCommand.Source -c "import sys; raise SystemExit(0 if sys.version_info.major -eq 3 else 1)" 2>$null
+        if ($LASTEXITCODE -eq 0) { $pythonExe = $pythonCommand.Source }
+    } catch {}
 }
-
-# 2. Check / Install windows-curses
-Write-Host "Checking windows-curses dependency..."
-$cursesCheck = python -c "import curses; print('ok')" 2>$null
-if ($cursesCheck -ne "ok") {
-    Write-Host "Installing windows-curses..." -ForegroundColor Yellow
-    pip install windows-curses
-    Write-Host "✓ windows-curses installed successfully." -ForegroundColor Green
-} else {
-    Write-Host "✓ curses support already available." -ForegroundColor Green
-}
-
-# 3. Setup Directories
-$binDir = Join-Path $HOME ".local\bin\cf"
-$dataDir = Join-Path $HOME ".local\share\cf"
-if (-not (Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force | Out-Null }
-if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir -Force | Out-Null }
-
-# 4. Copy or Download cf.py
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$targetFile = Join-Path $binDir "cf.py"
-
-if ($scriptDir -and (Test-Path (Join-Path $scriptDir "cf.py"))) {
-    Copy-Item (Join-Path $scriptDir "cf.py") -Destination $targetFile -Force
-    Write-Host "✓ Installed cf.py to $targetFile" -ForegroundColor Green
-} else {
-    Write-Host "Downloading cf.py from GitHub..." -ForegroundColor Yellow
-    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/nagachaitanyaappana/cf/main/cf.py" -OutFile $targetFile
-    Write-Host "✓ Downloaded cf.py to $targetFile" -ForegroundColor Green
-}
-
-# 5. Add to PowerShell Profile
-$profilePath = $PROFILE
-if (-not (Test-Path $profilePath)) {
-    $profileDir = Split-Path -Parent $profilePath
-    if (-not (Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force | Out-Null }
-    New-Item -ItemType File -Path $profilePath -Force | Out-Null
-}
-
-$cfSnippet = @"
-
-# cf (Choose Folder)
-function cf {
-    `$dir = python "$HOME\.local\bin\cf\cf.py"
-    if (`$dir -and (Test-Path `$dir)) {
-        Set-Location `$dir
+if (-not $pythonExe) {
+    $pyCommand = Get-Command py -ErrorAction SilentlyContinue
+    if ($pyCommand -and $pyCommand.Source) {
+        try {
+            & $pyCommand.Source -3 -c "import sys; print(sys.version_info.major)" 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { $pythonExe = $pyCommand.Source; $pythonPrefixArgs = @("-3") }
+        } catch {}
     }
 }
-"@
+if (-not $pythonExe) { throw "Python 3 was not found. Install Python 3 and add it to PATH." }
+Write-Host "Using Python: $pythonExe" -ForegroundColor Green
 
-$profileContent = Get-Content $profilePath -Raw -ErrorAction SilentlyContinue
-if ($profileContent -notmatch "function cf") {
-    Add-Content -Path $profilePath -Value $cfSnippet
-    Write-Host "✓ Added cf function to PowerShell profile: $profilePath" -ForegroundColor Green
-} else {
-    Write-Host "✓ cf function already exists in PowerShell profile" -ForegroundColor Green
+& $pythonExe @pythonPrefixArgs -c "import curses" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Installing windows-curses..." -ForegroundColor Yellow
+    & $pythonExe @pythonPrefixArgs -m pip install --user windows-curses
+    if ($LASTEXITCODE -ne 0) { throw "Could not install windows-curses." }
 }
 
-# 6. Create CMD batch wrapper (for cmd.exe)
-$cmdWrapper = @"
+$binDir = Join-Path $HOME ".local\bin\cf"
+$dataDir = Join-Path $HOME ".local\share\cf"
+New-Item -ItemType Directory -Path $binDir -Force | Out-Null
+New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
+
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$targetFile = Join-Path $binDir "cf.py"
+$sourceFile = if ($scriptDir) { Join-Path $scriptDir "cf.py" } else { $null }
+if ($sourceFile -and (Test-Path -LiteralPath $sourceFile -PathType Leaf)) {
+    Copy-Item -LiteralPath $sourceFile -Destination $targetFile -Force
+} else {
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/nagachaitanyaappana/cf/main/cf.py" -OutFile $targetFile
+}
+
+$profilePath = $PROFILE
+$profileDir = Split-Path -Parent $profilePath
+New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
+if (-not (Test-Path -LiteralPath $profilePath)) { New-Item -ItemType File -Path $profilePath -Force | Out-Null }
+$profileContent = Get-Content -LiteralPath $profilePath -Raw -ErrorAction SilentlyContinue
+$beginMarker = "# >>> cf (Choose Folder) >>>"
+$endMarker = "# <<< cf (Choose Folder) <<<"
+$pythonForProfile = $pythonExe.Replace("'", "''")
+$scriptForProfile = $targetFile.Replace("'", "''")
+$cfSnippet = @'
+# >>> cf (Choose Folder) >>>
+function cf {
+    $selected = & '__PYTHON__' '__SCRIPT__'
+    if ($LASTEXITCODE -eq 0 -and $selected) {
+        $selectedPath = ($selected | Select-Object -Last 1).ToString().Trim()
+        if (Test-Path -LiteralPath $selectedPath -PathType Container) {
+            Set-Location -LiteralPath $selectedPath
+        }
+    }
+}
+# <<< cf (Choose Folder) <<<
+'@
+$cfSnippet = $cfSnippet.Replace("__PYTHON__", $pythonForProfile).Replace("__SCRIPT__", $scriptForProfile)
+if ($profileContent -match [regex]::Escape($beginMarker)) {
+    $pattern = "(?s)" + [regex]::Escape($beginMarker) + ".*?" + [regex]::Escape($endMarker)
+    $profileContent = [regex]::Replace($profileContent, $pattern, [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $cfSnippet })
+    Set-Content -LiteralPath $profilePath -Value $profileContent
+} else {
+    Add-Content -LiteralPath $profilePath -Value ([Environment]::NewLine + $cfSnippet)
+}
+
+$cmdWrapper = @'
 @echo off
 for /f "delims=" %%i in ('python "%USERPROFILE%\.local\bin\cf\cf.py"') do (
-    if exist "%%i" cd /d "%%i"
+    if exist "%%i\." cd /d "%%i"
 )
-"@
-Set-Content -Path (Join-Path $binDir "cf.cmd") -Value $cmdWrapper -Encoding ASCII
-Write-Host "✓ Created Command Prompt wrapper at $(Join-Path $binDir 'cf.cmd')" -ForegroundColor Green
+'@
+$cmdPath = Join-Path $binDir "cf.cmd"
+Set-Content -LiteralPath $cmdPath -Value $cmdWrapper -Encoding ASCII
 
-Write-Host ""
-Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host "  Installation Successful! 🎉" -ForegroundColor Green
-Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host "To start using cf right away, reload your PowerShell profile:"
-Write-Host "  . `$PROFILE" -ForegroundColor Yellow
-Write-Host "Then simply type: cf"
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+$pathEntries = @($userPath -split ";" | Where-Object { $_ })
+if (-not ($pathEntries | Where-Object { $_.TrimEnd("\") -ieq $binDir.TrimEnd("\") })) {
+    [Environment]::SetEnvironmentVariable("Path", ((@($pathEntries) + $binDir) -join ";"), "User")
+}
+$currentEntries = @($env:Path -split ";" | Where-Object { $_ })
+if (-not ($currentEntries | Where-Object { $_.TrimEnd("\") -ieq $binDir.TrimEnd("\") })) {
+    $env:Path = ((@($currentEntries) + $binDir) -join ";")
+}
+
+Write-Host "cf installed successfully." -ForegroundColor Green
+Write-Host 'PowerShell: open a new terminal, or run: . $PROFILE' -ForegroundColor Yellow
+Write-Host "CMD: open a new Command Prompt and type: cf" -ForegroundColor Yellow
+Write-Host "If PowerShell blocks profile scripts, inspect: Get-ExecutionPolicy -List" -ForegroundColor Yellow
+Write-Host "The installer does not change your execution policy."

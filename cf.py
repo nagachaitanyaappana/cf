@@ -9,7 +9,7 @@ except ImportError:
     if sys.platform == "win32":
         sys.stderr.write(
             "Error: 'curses' is required on Windows.\n"
-            "Please install it by running: pip install windows-curses\n"
+            "Please install it by running: python -m pip install windows-curses\n"
         )
         sys.exit(1)
     raise

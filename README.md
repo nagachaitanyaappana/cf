@@ -58,7 +58,7 @@ cd cf
 .\install.ps1
 ```
 
-*(Note: On Windows, the installer automatically installs the lightweight `windows-curses` package if needed and sets up both PowerShell and CMD wrappers).*
+The Windows installer checks for Python 3, installs `windows-curses` through that same interpreter, adds the CMD wrapper directory to your user PATH, and adds an idempotent function to your PowerShell profile. It deliberately does not change your PowerShell execution policy. If profile scripts are disabled, inspect `Get-ExecutionPolicy -List` first.
 
 ---
 

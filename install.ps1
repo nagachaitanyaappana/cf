@@ -84,12 +84,15 @@ Write-Host "Updated PowerShell profile: $profilePath" -ForegroundColor Green
 
 # Create CMD wrapper and add its folder to the current-user PATH.
 $cmdWrapper = Join-Path $binDir "cf.cmd"
-$cmdContent = @'
+# Use the same interpreter selected above; %~dp0 keeps the script path independent
+# of the caller's working directory and avoids relying on PATH resolution.
+$cmdCommand = '"' + $pythonExe + '" ' + ($pythonArgs -join " ") + ' "%~dp0cf.py"'
+$cmdContent = @"
 @echo off
-for /f "delims=" %%i in ('python "%USERPROFILE%\.local\bin\cf\cf.py"') do (
-    if exist "%%i\." cd /d "%%i"
+for /f "delims=" %%i in ('$cmdCommand') do (
+    if exist "%%i\\." cd /d "%%i"
 )
-'@
+"@
 Set-Content -LiteralPath $cmdWrapper -Value $cmdContent -Encoding ASCII
 
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")

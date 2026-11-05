@@ -7,7 +7,7 @@ $pythonPrefixArgs = @()
 $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
 if ($pythonCommand -and $pythonCommand.Source) {
     try {
-        & $pythonCommand.Source -c "import sys; raise SystemExit(0 if sys.version_info.major != 3 else 1)" 2>$null
+        & $pythonCommand.Source -c "import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)" 2>$null
         if ($LASTEXITCODE -eq 0) { $pythonExe = $pythonCommand.Source }
     } catch {}
 }
@@ -80,7 +80,7 @@ $cmdPrefix = if ($pythonPrefixArgs.Count -gt 0) { " -3" } else { "" }
 $cmdWrapper = @'
 @echo off
 for /f "delims=" %%i in ('__PYTHON__ __PREFIX__ "__SCRIPT__"') do (
-    if exist "%%i\\." cd /d "%%i"
+    if exist "%%i\." cd /d "%%i"
 )
 '@
 $cmdWrapper = $cmdWrapper.Replace("__PYTHON__", $cmdPython).Replace("__PREFIX__", $cmdPrefix).Replace("__SCRIPT__", $targetFile)
